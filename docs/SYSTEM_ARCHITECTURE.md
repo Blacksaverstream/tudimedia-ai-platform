@@ -22,6 +22,10 @@ The platform uses a modular, API-first architecture: a web client communicates w
 4. Results are stored in the database and indexed for search.
 5. The client receives status updates and makes approved assets available for use or publishing.
 
+## Media processing pipeline
+
+The media worker claims database-backed jobs using `FOR UPDATE SKIP LOCKED`. Every upload is downloaded into an isolated temporary directory and scanned with ClamAV before further processing. Clean videos are probed and transcoded with FFmpeg into a web MP4 plus a JPEG thumbnail; derived media returns to private object storage and is recorded as tenant-scoped renditions. Failed jobs use bounded exponential backoff and idempotent object keys.
+
 ## Architectural principles
 
 - Tenant isolation is enforced at every access boundary.

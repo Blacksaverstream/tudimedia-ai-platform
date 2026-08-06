@@ -35,3 +35,5 @@ Retention, deletion, export, and legal-hold rules must be configurable per organ
 The first migration for the API service is [services/api/db/migrations/001_auth.sql](../services/api/db/migrations/001_auth.sql). It creates `users`, `organizations`, `organization_memberships`, `auth_sessions`, and `audit_events`, including organization scoping and indexes for active sessions and audit lookup.
 
 The upload migration, [services/api/db/migrations/002_assets.sql](../services/api/db/migrations/002_assets.sql), adds tenant-scoped `assets` and idempotent `media_jobs` records. Media bytes remain in object storage; the database retains object keys, declared metadata, processing state, and governance history.
+
+The video-processing migration, [services/api/db/migrations/003_video_processing.sql](../services/api/db/migrations/003_video_processing.sql), adds technical metadata, scan timestamps, worker leases, and `asset_renditions`. Jobs are claimed with row locking and remain retryable without creating duplicate asset/job pairs.
