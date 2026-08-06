@@ -49,6 +49,13 @@ export class PostgresAiStore {
           await client.query(`INSERT INTO review_tasks (organization_id, asset_id, enrichment_result_id, reason) VALUES ($1,$2,$3,$4)`, [job.organizationId, job.assetId, inserted.rows[0].id, reason]);
         }
       }
+      const transcript = results.find((item) => item.kind === "transcript")?.content ?? {};
+      const summary = results.find((item) => item.kind === "summary")?.content ?? {};
+      const tags = results.find((item) => item.kind === "tags")?.content?.items ?? [];
+      await client.query(
+        `UPDATE asset_search_documents SET transcript = $2, summary = $3, tags = $4, language = $5, updated_at = now() WHERE asset_id = $1`,
+        [job.assetId, transcript.text ?? "", summary.text ?? "", tags, transcript.language ?? null]
+      );
       await client.query(
         `UPDATE model_runs SET status = 'completed', input_units = $2, output_units = $3, cost_micros = $4, latency_ms = $5, completed_at = now() WHERE id = $1`,
         [run.id, usage.inputUnits, usage.outputUnits, usage.costMicros, latencyMs]

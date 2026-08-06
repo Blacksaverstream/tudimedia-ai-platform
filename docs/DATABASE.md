@@ -39,3 +39,5 @@ The upload migration, [services/api/db/migrations/002_assets.sql](../services/ap
 The video-processing migration, [services/api/db/migrations/003_video_processing.sql](../services/api/db/migrations/003_video_processing.sql), adds technical metadata, scan timestamps, worker leases, and `asset_renditions`. Jobs are claimed with row locking and remain retryable without creating duplicate asset/job pairs.
 
 The AI migration, [services/api/db/migrations/004_ai_enrichment.sql](../services/api/db/migrations/004_ai_enrichment.sql), adds auditable `model_runs`, versioned `enrichment_results`, and human `review_tasks`. It records usage, latency, cost, confidence, provider/model identity, prompt version, and failure details without placing access tokens or signed URLs in persistent storage.
+
+The search migration, [services/api/db/migrations/005_search.sql](../services/api/db/migrations/005_search.sql), creates one weighted `asset_search_documents` row per asset. PostgreSQL GIN indexes support full-text and tag lookup. Asset-name triggers and AI-completion updates keep the index synchronized without making object storage part of the query path.
