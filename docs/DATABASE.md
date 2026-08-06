@@ -37,3 +37,5 @@ The first migration for the API service is [services/api/db/migrations/001_auth.
 The upload migration, [services/api/db/migrations/002_assets.sql](../services/api/db/migrations/002_assets.sql), adds tenant-scoped `assets` and idempotent `media_jobs` records. Media bytes remain in object storage; the database retains object keys, declared metadata, processing state, and governance history.
 
 The video-processing migration, [services/api/db/migrations/003_video_processing.sql](../services/api/db/migrations/003_video_processing.sql), adds technical metadata, scan timestamps, worker leases, and `asset_renditions`. Jobs are claimed with row locking and remain retryable without creating duplicate asset/job pairs.
+
+The AI migration, [services/api/db/migrations/004_ai_enrichment.sql](../services/api/db/migrations/004_ai_enrichment.sql), adds auditable `model_runs`, versioned `enrichment_results`, and human `review_tasks`. It records usage, latency, cost, confidence, provider/model identity, prompt version, and failure details without placing access tokens or signed URLs in persistent storage.

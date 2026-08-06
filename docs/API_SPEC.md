@@ -39,6 +39,7 @@ Access tokens are short-lived signed bearer tokens. Refresh tokens are opaque, s
 | `POST /assets/upload-intents` | Create a tenant-scoped asset and a 15-minute signed object-storage upload URL. |
 | `POST /assets/{id}/upload-complete` | Verify the uploaded object and enqueue malware scanning. |
 | `GET /assets/{id}` | Return the tenant-authorized asset and processing status. |
+| `GET /assets/{id}/enrichments` | Return current tenant-authorized AI results with model and prompt provenance. |
 
 Upload intents accept `name`, `filename`, `mimeType`, `sizeBytes`, and an optional SHA-256 checksum. The client uploads directly to object storage using the returned `PUT` URL, then calls the completion endpoint. The API verifies object size, type, and checksum when supplied before queuing processing.
 

@@ -26,6 +26,12 @@ AI services enrich media and improve discovery while retaining human control, te
 - Enable tenant-level feature controls and retention policies.
 - Support fallback providers and graceful degradation when AI is unavailable.
 
+## Provider gateway contract
+
+The AI worker calls a configured media-enrichment gateway rather than embedding a vendor-specific SDK in domain logic. The gateway receives a short-lived signed source URL and returns transcript, summary, tags, moderation, confidence, and usage fields. `AI_PROVIDER_NAME`, `AI_MODEL`, and `AI_PROMPT_VERSION` identify every model run. Responses are schema-validated and bounded before persistence.
+
+Each completed run creates versioned results with provider/model/prompt provenance. Only one result per asset and enrichment kind is current; earlier results remain available for audit and evaluation. Flagged moderation outputs and results below `AI_REVIEW_THRESHOLD` create pending human-review tasks.
+
 ## Retrieval safety
 
 Search retrieval is always filtered by the caller's tenant and permissions before results reach an AI model or user interface. Generated responses must link back to source assets and avoid claiming certainty beyond their evidence.

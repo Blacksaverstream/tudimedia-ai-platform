@@ -26,6 +26,8 @@ The platform uses a modular, API-first architecture: a web client communicates w
 
 The media worker claims database-backed jobs using `FOR UPDATE SKIP LOCKED`. Every upload is downloaded into an isolated temporary directory and scanned with ClamAV before further processing. Clean videos are probed and transcoded with FFmpeg into a web MP4 plus a JPEG thumbnail; derived media returns to private object storage and is recorded as tenant-scoped renditions. Failed jobs use bounded exponential backoff and idempotent object keys.
 
+After media processing, a separate AI worker claims `ai_enrich` jobs. It passes a short-lived signed rendition URL to an approved provider gateway, validates returned transcript/summary/tag/moderation payloads, and persists model runs plus versioned results. Provider failures retry independently and never make the core asset unavailable.
+
 ## Architectural principles
 
 - Tenant isolation is enforced at every access boundary.

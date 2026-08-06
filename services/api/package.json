@@ -11,6 +11,7 @@
     "start": "node src/server.js",
     "migrate": "node db/migrate.js",
     "worker:media": "node src/media-worker.js",
+    "worker:ai": "node src/ai-worker.js",
     "test": "node --test"
   },
   "dependencies": {
