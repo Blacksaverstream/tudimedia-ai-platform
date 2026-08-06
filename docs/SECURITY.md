@@ -22,6 +22,10 @@ Treat media and retrieved text as untrusted input. Do not allow prompt content t
 
 The initial platform implementation uses a self-hosted credential provider backed by PostgreSQL: scrypt password hashes, short-lived signed access tokens, rotated opaque refresh sessions, and organization-scoped role-based access control. This keeps the platform portable while allowing a future enterprise OIDC/SAML provider to be added behind the same authentication boundary. Token and session secrets must be distinct managed secrets of at least 32 characters.
 
+## Upload safeguards
+
+Uploads use short-lived signed URLs into private object storage. Object keys begin with the authenticated organization ID and a server-generated asset ID. The completion flow verifies stored size, media type, and an optional SHA-256 checksum before it creates an idempotent malware-scan job. A file must not become available for preview, AI processing, or publishing until scanning succeeds.
+
 ## Incident readiness
 
 Maintain incident runbooks, on-call ownership, log retention, evidence preservation, breach-assessment procedures, and regular access reviews. Test backup restoration and response processes on a planned cadence.

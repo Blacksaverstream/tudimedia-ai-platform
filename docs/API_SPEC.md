@@ -32,6 +32,16 @@
 
 Access tokens are short-lived signed bearer tokens. Refresh tokens are opaque, stored only in an `HttpOnly`, `SameSite=Strict` cookie, and rotated on every use.
 
+## Asset upload endpoints
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /assets/upload-intents` | Create a tenant-scoped asset and a 15-minute signed object-storage upload URL. |
+| `POST /assets/{id}/upload-complete` | Verify the uploaded object and enqueue malware scanning. |
+| `GET /assets/{id}` | Return the tenant-authorized asset and processing status. |
+
+Upload intents accept `name`, `filename`, `mimeType`, `sizeBytes`, and an optional SHA-256 checksum. The client uploads directly to object storage using the returned `PUT` URL, then calls the completion endpoint. The API verifies object size, type, and checksum when supplied before queuing processing.
+
 ## Example: create an asset
 
 ```http
