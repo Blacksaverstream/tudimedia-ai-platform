@@ -18,6 +18,10 @@ Protect tenant data, enforce least privilege, preserve auditability, and maintai
 
 Treat media and retrieved text as untrusted input. Do not allow prompt content to override system policies, expose other tenants' data, or trigger privileged actions. Apply provider allowlists, data-minimization rules, and output review appropriate to risk.
 
+## Authentication decision
+
+The initial platform implementation uses a self-hosted credential provider backed by PostgreSQL: scrypt password hashes, short-lived signed access tokens, rotated opaque refresh sessions, and organization-scoped role-based access control. This keeps the platform portable while allowing a future enterprise OIDC/SAML provider to be added behind the same authentication boundary. Token and session secrets must be distinct managed secrets of at least 32 characters.
+
 ## Incident readiness
 
 Maintain incident runbooks, on-call ownership, log retention, evidence preservation, breach-assessment procedures, and regular access reviews. Test backup restoration and response processes on a planned cadence.

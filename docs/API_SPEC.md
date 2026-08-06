@@ -19,6 +19,19 @@
 | Reviews | `POST /assets/{id}/reviews`, `POST /reviews/{id}/approve` |
 | Webhooks | `GET/POST /webhooks`, `DELETE /webhooks/{id}` |
 
+## Authentication endpoints
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /auth/sign-up` | Create a user, their organization, an owner membership, and a session. |
+| `POST /auth/sign-in` | Authenticate an existing user for a supplied organization. |
+| `POST /auth/refresh` | Rotate the refresh session and return a fresh access token. |
+| `POST /auth/sign-out` | Revoke the current refresh session. |
+| `GET /auth/me` | Return the authenticated user context. |
+| `POST /organizations/members` | Add an existing user as an organization member; owner/admin only. |
+
+Access tokens are short-lived signed bearer tokens. Refresh tokens are opaque, stored only in an `HttpOnly`, `SameSite=Strict` cookie, and rotated on every use.
+
 ## Example: create an asset
 
 ```http

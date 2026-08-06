@@ -29,3 +29,7 @@ The transactional database is the source of truth. Every tenant-scoped table inc
 ## Data governance
 
 Retention, deletion, export, and legal-hold rules must be configurable per organization and enforced in background jobs. See [SECURITY.md](SECURITY.md).
+
+## Authentication schema
+
+The first migration for the API service is [services/api/db/migrations/001_auth.sql](../services/api/db/migrations/001_auth.sql). It creates `users`, `organizations`, `organization_memberships`, `auth_sessions`, and `audit_events`, including organization scoping and indexes for active sessions and audit lookup.
