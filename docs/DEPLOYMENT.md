@@ -31,6 +31,10 @@ For uploads, configure `S3_BUCKET` and `S3_REGION`. `S3_ENDPOINT` and `S3_FORCE_
 
 Run `pnpm worker:media` from `services/api` as a separate service after migrations complete. Its image/host must provide current supported FFmpeg/FFprobe and ClamAV (`clamdscan`) binaries plus updated virus definitions. Override their executable locations with `FFMPEG_PATH`, `FFPROBE_PATH`, and `CLAMD_SCAN_PATH`. The worker requires the same database and private object-storage configuration as the API. Scale workers horizontally; database row locks prevent duplicate claims.
 
+## AI worker
+
+Run `pnpm worker:ai` as an independently scalable service. Configure `AI_PROVIDER_ENDPOINT`, `AI_PROVIDER_API_KEY`, `AI_PROVIDER_NAME`, `AI_MODEL`, and `AI_PROMPT_VERSION` through managed secrets/configuration. `AI_REVIEW_THRESHOLD` defaults to `0.75`. The provider endpoint must accept the documented `/v1/media/enrich` contract, must not retain source media unless the tenant policy allows it, and must be restricted to approved regions/providers.
+
 ## Observability
 
 Capture structured logs, metrics, traces, audit events, queue health, AI job quality, and cost indicators. Alerts should be actionable and linked to an owning team and runbook.

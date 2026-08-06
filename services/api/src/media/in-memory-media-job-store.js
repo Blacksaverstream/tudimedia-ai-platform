@@ -6,7 +6,7 @@ export class InMemoryMediaJobStore {
     this.auditEvents = [];
   }
   async claimNext(workerId) {
-    const job = this.jobs.find((item) => ["queued", "failed"].includes(item.status) && (item.attempts ?? 0) < 5);
+    const job = this.jobs.find((item) => ["malware_scan", "video_transcode"].includes(item.jobType) && ["queued", "failed"].includes(item.status) && (item.attempts ?? 0) < 5);
     if (!job) return null;
     Object.assign(job, { status: "processing", attempts: (job.attempts ?? 0) + 1, workerId });
     const asset = this.assets.get(job.assetId);
@@ -19,7 +19,7 @@ export class InMemoryMediaJobStore {
     if (clean) {
       asset.scannedAt = new Date();
       if (asset.mimeType.startsWith("video/")) this.jobs.push({ id: `video-${job.assetId}`, organizationId: job.organizationId, assetId: job.assetId, jobType: "video_transcode", status: "queued", attempts: 0 });
-      else asset.status = "ready";
+      else { asset.status = "ready"; this.jobs.push({ id: `ai-${job.assetId}`, organizationId: job.organizationId, assetId: job.assetId, jobType: "ai_enrich", status: "queued", attempts: 0 }); }
     } else { asset.status = "rejected"; asset.rejectionReason = "Malware scan detected unsafe content."; }
     job.status = "completed";
     this.auditEvents.push({ action: clean ? "asset.malware_scan_passed" : "asset.malware_detected", output });
@@ -28,6 +28,7 @@ export class InMemoryMediaJobStore {
     const asset = this.assets.get(job.assetId);
     asset.status = "ready"; asset.technicalMetadata = metadata;
     this.renditions.push(...renditions); job.status = "completed";
+    this.jobs.push({ id: `ai-${job.assetId}`, organizationId: job.organizationId, assetId: job.assetId, jobType: "ai_enrich", status: "queued", attempts: 0 });
     this.auditEvents.push({ action: "asset.video_processed" });
   }
   async failJob(job, error) {

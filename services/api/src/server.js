@@ -69,6 +69,10 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && completeMatch) {
       return send(response, 202, await uploads.completeUpload({ actor: await auth.authenticate(bearer(request)), assetId: completeMatch[1] }));
     }
+    const enrichmentMatch = request.url?.match(/^\/api\/v1\/assets\/([0-9a-f-]+)\/enrichments$/i);
+    if (request.method === "GET" && enrichmentMatch) {
+      return send(response, 200, { enrichments: await uploads.getEnrichments({ actor: await auth.authenticate(bearer(request)), assetId: enrichmentMatch[1] }) });
+    }
     const assetMatch = request.url?.match(/^\/api\/v1\/assets\/([0-9a-f-]+)$/i);
     if (request.method === "GET" && assetMatch) {
       return send(response, 200, { asset: await uploads.getAsset({ actor: await auth.authenticate(bearer(request)), assetId: assetMatch[1] }) });

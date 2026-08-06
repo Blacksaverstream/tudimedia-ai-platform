@@ -14,6 +14,9 @@ export class S3ObjectStorage {
     const command = new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: mimeType, ContentLength: Number(sizeBytes), ...(checksumSha256 ? { ChecksumSHA256: checksumSha256 } : {}) });
     return getSignedUrl(this.client, command, { expiresIn: this.expiresInSeconds });
   }
+  async createDownloadUrl(key) {
+    return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.bucket, Key: key }), { expiresIn: this.expiresInSeconds });
+  }
   async inspectObject(key) {
     try {
       const result = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
@@ -35,6 +38,7 @@ export class S3ObjectStorage {
 export class InMemoryObjectStorage {
   constructor() { this.objects = new Map(); }
   async createUploadUrl({ key }) { return `memory://upload/${encodeURIComponent(key)}`; }
+  async createDownloadUrl(key) { return `memory://download/${encodeURIComponent(key)}`; }
   async inspectObject(key) { return this.objects.get(key) ?? null; }
   putObject(key, metadata) { this.objects.set(key, metadata); }
 }

@@ -24,5 +24,6 @@ export class InMemoryAssetStore {
     this.jobs.push(record);
     return record;
   }
+  async getCurrentEnrichments() { return []; }
   async appendAudit(event) { this.auditEvents.push({ id: randomUUID(), occurredAt: new Date(), ...event }); }
 }

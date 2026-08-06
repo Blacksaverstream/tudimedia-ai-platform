@@ -62,4 +62,10 @@ export class UploadService {
     if (!asset) throw new AuthError("ASSET_NOT_FOUND", "Asset not found.", 404);
     return asset;
   }
+  async getEnrichments({ actor, assetId }) {
+    requirePermission(actor.role, "assets:read");
+    const asset = await this.store.getAsset(actor.organizationId, assetId);
+    if (!asset) throw new AuthError("ASSET_NOT_FOUND", "Asset not found.", 404);
+    return this.store.getCurrentEnrichments(actor.organizationId, assetId);
+  }
 }

@@ -6,7 +6,7 @@ export class PostgresMediaJobStore {
       await client.query("BEGIN");
       const result = await client.query(
         `SELECT id FROM media_jobs
-         WHERE status IN ('queued', 'failed') AND available_at <= now() AND attempts < 5
+         WHERE job_type IN ('malware_scan', 'video_transcode') AND status IN ('queued', 'failed') AND available_at <= now() AND attempts < 5
          ORDER BY available_at, created_at FOR UPDATE SKIP LOCKED LIMIT 1`
       );
       if (!result.rows[0]) { await client.query("COMMIT"); return null; }
@@ -37,6 +37,7 @@ export class PostgresMediaJobStore {
           await client.query(`INSERT INTO media_jobs (organization_id, asset_id, job_type) VALUES ($1, $2, 'video_transcode') ON CONFLICT (asset_id, job_type) DO NOTHING`, [job.organizationId, job.assetId]);
         } else {
           await client.query(`UPDATE assets SET status = 'ready', updated_at = now() WHERE organization_id = $1 AND id = $2`, [job.organizationId, job.assetId]);
+          await client.query(`INSERT INTO media_jobs (organization_id, asset_id, job_type) VALUES ($1, $2, 'ai_enrich') ON CONFLICT (asset_id, job_type) DO NOTHING`, [job.organizationId, job.assetId]);
         }
       } else {
         await client.query(`UPDATE assets SET status = 'rejected', rejection_reason = $3, updated_at = now() WHERE organization_id = $1 AND id = $2`, [job.organizationId, job.assetId, "Malware scan detected unsafe content."]);
@@ -57,6 +58,7 @@ export class PostgresMediaJobStore {
         );
       }
       await client.query(`UPDATE assets SET status = 'ready', technical_metadata = $3::jsonb, updated_at = now() WHERE organization_id = $1 AND id = $2`, [job.organizationId, job.assetId, JSON.stringify(metadata)]);
+      await client.query(`INSERT INTO media_jobs (organization_id, asset_id, job_type) VALUES ($1, $2, 'ai_enrich') ON CONFLICT (asset_id, job_type) DO NOTHING`, [job.organizationId, job.assetId]);
       await this.finishJob(client, job.id);
       await this.audit(client, job, "asset.video_processed", { renditionKinds: renditions.map((item) => item.kind) });
     });

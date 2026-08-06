@@ -52,6 +52,16 @@ export class PostgresAssetStore {
       [organizationId, assetId, jobType]
     );
   }
+  async getCurrentEnrichments(organizationId, assetId) {
+    const result = await this.queryable.query(
+      `SELECT er.id, er.kind, er.content, er.confidence, er.needs_review AS "needsReview", er.created_at AS "createdAt",
+        mr.provider, mr.model, mr.prompt_version AS "promptVersion"
+       FROM enrichment_results er JOIN model_runs mr ON mr.id = er.model_run_id
+       WHERE er.organization_id = $1 AND er.asset_id = $2 AND er.is_current ORDER BY er.kind`,
+      [organizationId, assetId]
+    );
+    return result.rows;
+  }
   async appendAudit({ organizationId, actorUserId = null, targetUserId = null, sessionId = null, action, metadata = {} }) {
     await this.queryable.query(
       `INSERT INTO audit_events (organization_id, actor_user_id, target_user_id, session_id, action, metadata)
