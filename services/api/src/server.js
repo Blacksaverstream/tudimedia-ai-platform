@@ -5,6 +5,10 @@ import { InMemoryAuthStore } from "./auth/in-memory-store.js";
 import { PostgresAuthStore } from "./auth/postgres-store.js";
 import * as passwords from "./auth/passwords.js";
 import { createTokenService } from "./auth/tokens.js";
+import { InMemoryAssetStore } from "./assets/in-memory-asset-store.js";
+import { InMemoryObjectStorage, S3ObjectStorage } from "./assets/object-storage.js";
+import { PostgresAssetStore } from "./assets/postgres-asset-store.js";
+import { UploadService } from "./assets/upload-service.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const production = process.env.NODE_ENV === "production";
@@ -12,11 +16,15 @@ const tokenSecret = process.env.AUTH_TOKEN_SECRET;
 const sessionPepper = process.env.AUTH_SESSION_PEPPER;
 if (!tokenSecret || !sessionPepper) throw new Error("AUTH_TOKEN_SECRET and AUTH_SESSION_PEPPER are required.");
 
-if (production && !process.env.DATABASE_URL) throw new Error("DATABASE_URL is required in production.");
-const store = production
-  ? new PostgresAuthStore(new (await import("pg")).Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === "false" ? false : undefined }))
-  : new InMemoryAuthStore();
-const auth = new AuthService({ store, passwords, sessionPepper, tokens: createTokenService({ secret: tokenSecret, issuer: "tudimedia-api", audience: "tudimedia-web" }) });
+if (production && (!process.env.DATABASE_URL || !process.env.S3_BUCKET || !process.env.S3_REGION)) throw new Error("DATABASE_URL, S3_BUCKET, and S3_REGION are required in production.");
+const databasePool = production ? new (await import("pg")).Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === "false" ? false : undefined }) : null;
+const authStore = production ? new PostgresAuthStore(databasePool) : new InMemoryAuthStore();
+const assetStore = production ? new PostgresAssetStore(databasePool) : new InMemoryAssetStore();
+const objectStorage = production
+  ? new S3ObjectStorage({ bucket: process.env.S3_BUCKET, region: process.env.S3_REGION, endpoint: process.env.S3_ENDPOINT, forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "true" })
+  : new InMemoryObjectStorage();
+const auth = new AuthService({ store: authStore, passwords, sessionPepper, tokens: createTokenService({ secret: tokenSecret, issuer: "tudimedia-api", audience: "tudimedia-web" }) });
+const uploads = new UploadService({ store: assetStore, objectStorage, maxSizeBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 5 * 1024 * 1024 * 1024) });
 
 const readBody = async (request) => {
   const chunks = [];
@@ -52,6 +60,18 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/api/v1/organizations/members") {
       const membership = await auth.addMembership({ actor: await auth.authenticate(bearer(request)), ...body });
       return send(response, 201, { membership });
+    }
+    if (request.method === "POST" && request.url === "/api/v1/assets/upload-intents") {
+      const result = await uploads.createUploadIntent({ actor: await auth.authenticate(bearer(request)), ...body });
+      return send(response, 201, result);
+    }
+    const completeMatch = request.url?.match(/^\/api\/v1\/assets\/([0-9a-f-]+)\/upload-complete$/i);
+    if (request.method === "POST" && completeMatch) {
+      return send(response, 202, await uploads.completeUpload({ actor: await auth.authenticate(bearer(request)), assetId: completeMatch[1] }));
+    }
+    const assetMatch = request.url?.match(/^\/api\/v1\/assets\/([0-9a-f-]+)$/i);
+    if (request.method === "GET" && assetMatch) {
+      return send(response, 200, { asset: await uploads.getAsset({ actor: await auth.authenticate(bearer(request)), assetId: assetMatch[1] }) });
     }
     return send(response, 404, { error: { code: "NOT_FOUND", message: "Route not found." } });
   } catch (error) {
