@@ -28,6 +28,8 @@ The media worker claims database-backed jobs using `FOR UPDATE SKIP LOCKED`. Eve
 
 After media processing, a separate AI worker claims `ai_enrich` jobs. It passes a short-lived signed rendition URL to an approved provider gateway, validates returned transcript/summary/tag/moderation payloads, and persists model runs plus versioned results. Provider failures retry independently and never make the core asset unavailable.
 
+Search uses a denormalized PostgreSQL document containing asset name, AI summary, tags, and transcript. Weighted `tsvector` ranking and GIN indexes provide the initial discovery layer. Organization and ready-state predicates are applied in the database query before any result reaches the API.
+
 ## Architectural principles
 
 - Tenant isolation is enforced at every access boundary.

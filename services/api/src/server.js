@@ -9,6 +9,9 @@ import { InMemoryAssetStore } from "./assets/in-memory-asset-store.js";
 import { InMemoryObjectStorage, S3ObjectStorage } from "./assets/object-storage.js";
 import { PostgresAssetStore } from "./assets/postgres-asset-store.js";
 import { UploadService } from "./assets/upload-service.js";
+import { InMemorySearchStore } from "./search/in-memory-search-store.js";
+import { PostgresSearchStore } from "./search/postgres-search-store.js";
+import { SearchService } from "./search/search-service.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const production = process.env.NODE_ENV === "production";
@@ -25,6 +28,7 @@ const objectStorage = production
   : new InMemoryObjectStorage();
 const auth = new AuthService({ store: authStore, passwords, sessionPepper, tokens: createTokenService({ secret: tokenSecret, issuer: "tudimedia-api", audience: "tudimedia-web" }) });
 const uploads = new UploadService({ store: assetStore, objectStorage, maxSizeBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 5 * 1024 * 1024 * 1024) });
+const search = new SearchService({ store: production ? new PostgresSearchStore(databasePool) : new InMemorySearchStore() });
 
 const readBody = async (request) => {
   const chunks = [];
@@ -64,6 +68,9 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/api/v1/assets/upload-intents") {
       const result = await uploads.createUploadIntent({ actor: await auth.authenticate(bearer(request)), ...body });
       return send(response, 201, result);
+    }
+    if (request.method === "POST" && request.url === "/api/v1/search") {
+      return send(response, 200, await search.search({ actor: await auth.authenticate(bearer(request)), ...body }));
     }
     const completeMatch = request.url?.match(/^\/api\/v1\/assets\/([0-9a-f-]+)\/upload-complete$/i);
     if (request.method === "POST" && completeMatch) {

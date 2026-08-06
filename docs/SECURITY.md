@@ -30,6 +30,8 @@ Media processing uses argument-array process execution without a command shell. 
 
 AI providers receive a short-lived signed URL only after malware scanning succeeds. Provider keys remain in managed secret storage and are never recorded in model runs, logs, or audit metadata. AI responses are treated as untrusted, size-bounded data; moderation flags and low-confidence results require human review.
 
+Search never accepts an organization identifier from the request. It derives tenancy from the verified access token and applies the organization predicate inside the database query. Rejected, processing, and failed assets are excluded from discovery, and all search terms and filters are passed as parameterized query values.
+
 ## Incident readiness
 
 Maintain incident runbooks, on-call ownership, log retention, evidence preservation, breach-assessment procedures, and regular access reviews. Test backup restoration and response processes on a planned cadence.

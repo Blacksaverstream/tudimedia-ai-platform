@@ -43,6 +43,10 @@ Access tokens are short-lived signed bearer tokens. Refresh tokens are opaque, s
 
 Upload intents accept `name`, `filename`, `mimeType`, `sizeBytes`, and an optional SHA-256 checksum. The client uploads directly to object storage using the returned `PUT` URL, then calls the completion endpoint. The API verifies object size, type, and checksum when supplied before queuing processing.
 
+## Search
+
+`POST /search` accepts `query`, optional `filters.mediaType`, optional `filters.tags`, `cursor`, and `limit` (1–100). Results are restricted to the authenticated organization and assets in `ready` state. Names receive the highest text weight, summaries and tags the next weight, and transcripts the supporting weight. Responses contain ranked items and an opaque `nextCursor`.
+
 ## Example: create an asset
 
 ```http
