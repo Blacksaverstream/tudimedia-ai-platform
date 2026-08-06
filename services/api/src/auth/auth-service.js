@@ -18,24 +18,28 @@ export class AuthService {
   }
 
   async signUp({ email, password, organizationName }) {
+    return this.store.transaction((store) => this.signUpInTransaction(store, { email, password, organizationName }));
+  }
+
+  async signUpInTransaction(store, { email, password, organizationName }) {
     const normalizedEmail = normalizeEmail(email);
     const name = String(organizationName ?? "").trim();
     if (!validEmail(normalizedEmail) || name.length < 2 || name.length > 120) throw new AuthError("AUTH_VALIDATION", "A valid email and organization name are required.", 422);
     const passwordHash = await this.passwords.hashPassword(password);
-    const user = await this.store.createUser({ email: normalizedEmail, passwordHash });
+    const user = await store.createUser({ email: normalizedEmail, passwordHash });
     if (!user) throw new AuthError("AUTH_EMAIL_IN_USE", "An account already uses this email address.", 409);
 
     const baseSlug = slugify(name) || "organization";
     let organization;
     for (let suffix = 0; suffix < 10 && !organization; suffix += 1) {
-      organization = await this.store.createOrganization({ name, slug: suffix ? `${baseSlug}-${suffix + 1}` : baseSlug });
+      organization = await store.createOrganization({ name, slug: suffix ? `${baseSlug}-${suffix + 1}` : baseSlug });
     }
     if (!organization) throw new AuthError("AUTH_ORGANIZATION_CONFLICT", "Unable to create an organization. Please choose another name.", 409);
 
-    await this.store.createMembership({ organizationId: organization.id, userId: user.id, role: Roles.OWNER });
-    const session = await this.createSession({ user, organization, role: Roles.OWNER });
-    await this.audit("user.registered", { organizationId: organization.id, actorUserId: user.id, targetUserId: user.id });
-    await this.audit("auth.signed_in", { organizationId: organization.id, actorUserId: user.id, targetUserId: user.id, sessionId: session.id });
+    await store.createMembership({ organizationId: organization.id, userId: user.id, role: Roles.OWNER });
+    const session = await this.createSession(store, { user, organization, role: Roles.OWNER });
+    await this.audit(store, "user.registered", { organizationId: organization.id, actorUserId: user.id, targetUserId: user.id });
+    await this.audit(store, "auth.signed_in", { organizationId: organization.id, actorUserId: user.id, targetUserId: user.id, sessionId: session.id });
     return this.response(user, organization, Roles.OWNER, session);
   }
 
@@ -48,24 +52,29 @@ export class AuthService {
     }
     const membership = await this.store.getMembership(organizationId, user.id);
     if (!membership) throw unauthorized("Invalid email or password.");
-    const organization = this.store.organizations?.get(organizationId) ?? { id: organizationId };
-    const session = await this.createSession({ user, organization, role: membership.role });
-    await this.audit("auth.signed_in", { organizationId, actorUserId: user.id, targetUserId: user.id, sessionId: session.id });
+    const organization = await this.store.getOrganization(organizationId);
+    if (!organization) throw unauthorized("Invalid email or password.");
+    const session = await this.createSession(this.store, { user, organization, role: membership.role });
+    await this.audit(this.store, "auth.signed_in", { organizationId, actorUserId: user.id, targetUserId: user.id, sessionId: session.id });
     return this.response(user, organization, membership.role, session);
   }
 
   async refresh({ refreshToken }) {
+    return this.store.transaction((store) => this.refreshInTransaction(store, { refreshToken }));
+  }
+
+  async refreshInTransaction(store, { refreshToken }) {
     const { sessionId, secret } = this.parseRefreshToken(refreshToken);
-    const session = await this.store.getSession(sessionId);
     const now = this.clock();
     const nextSecret = randomBytes(32).toString("base64url");
-    const rotated = await this.store.rotateSession({ id: sessionId, expectedRefreshHash: this.refreshHash(secret), nextRefreshHash: this.refreshHash(nextSecret), now, expiresAt: this.sessionExpiry(now) });
+    const rotated = await store.rotateSession({ id: sessionId, expectedRefreshHash: this.refreshHash(secret), nextRefreshHash: this.refreshHash(nextSecret), now, expiresAt: this.sessionExpiry(now) });
     if (!rotated) throw unauthorized("Your session has expired. Please sign in again.");
-    const user = await this.store.getUser(rotated.userId);
-    const membership = await this.store.getMembership(rotated.organizationId, rotated.userId);
+    const user = await store.getUser(rotated.userId);
+    const membership = await store.getMembership(rotated.organizationId, rotated.userId);
     if (!user || !membership) throw unauthorized("Your session is no longer valid.");
-    const organization = this.store.organizations?.get(rotated.organizationId) ?? { id: rotated.organizationId };
-    await this.audit("auth.session_refreshed", { organizationId: rotated.organizationId, actorUserId: user.id, targetUserId: user.id, sessionId });
+    const organization = await store.getOrganization(rotated.organizationId);
+    if (!organization) throw unauthorized("Your session is no longer valid.");
+    await this.audit(store, "auth.session_refreshed", { organizationId: rotated.organizationId, actorUserId: user.id, targetUserId: user.id, sessionId });
     return this.response(user, organization, membership.role, { ...rotated, rawRefreshToken: `${sessionId}.${nextSecret}` });
   }
 
@@ -74,7 +83,7 @@ export class AuthService {
       const { sessionId, secret } = this.parseRefreshToken(refreshToken);
       const session = await this.store.getSession(sessionId);
       if (session && session.refreshHash === this.refreshHash(secret) && await this.store.revokeSession(sessionId, this.clock())) {
-        await this.audit("auth.signed_out", { organizationId: session.organizationId, actorUserId: session.userId, targetUserId: session.userId, sessionId });
+        await this.audit(this.store, "auth.signed_out", { organizationId: session.organizationId, actorUserId: session.userId, targetUserId: session.userId, sessionId });
       }
     } catch {
       // Sign-out is intentionally idempotent and does not reveal session state.
@@ -96,15 +105,16 @@ export class AuthService {
     if (!user) throw new AuthError("AUTH_USER_NOT_FOUND", "The invited user must create an account first.", 404);
     const membership = await this.store.createMembership({ organizationId: actor.organizationId, userId: user.id, role });
     if (!membership) throw new AuthError("AUTH_MEMBERSHIP_EXISTS", "This user already belongs to the organization.", 409);
-    await this.audit("organization.membership_added", { organizationId: actor.organizationId, actorUserId: actor.userId, targetUserId: user.id, metadata: { role } });
+    await this.audit(this.store, "organization.membership_added", { organizationId: actor.organizationId, actorUserId: actor.userId, targetUserId: user.id, metadata: { role } });
     return membership;
   }
 
-  async createSession({ user, organization, role }) {
+  async createSession(store, { user, organization, role }) {
     const id = randomUUID();
     const secret = randomBytes(32).toString("base64url");
     const now = this.clock();
-    return this.store.createSession({ id, userId: user.id, organizationId: organization.id, role, refreshHash: this.refreshHash(secret), expiresAt: this.sessionExpiry(now), createdAt: now, lastUsedAt: now, rawRefreshToken: `${id}.${secret}` });
+    const session = await store.createSession({ id, userId: user.id, organizationId: organization.id, role, refreshHash: this.refreshHash(secret), expiresAt: this.sessionExpiry(now), createdAt: now, lastUsedAt: now, rawRefreshToken: `${id}.${secret}` });
+    return { ...session, rawRefreshToken: `${id}.${secret}` };
   }
 
   response(user, organization, role, session) {
@@ -118,5 +128,5 @@ export class AuthService {
     if (!sessionId || !secret) throw unauthorized("A refresh token is required.");
     return { sessionId, secret };
   }
-  async audit(action, details = {}) { await this.store.appendAudit({ action, ...details }); }
+  async audit(store, action, details = {}) { await store.appendAudit({ action, ...details }); }
 }

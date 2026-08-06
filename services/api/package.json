@@ -9,6 +9,10 @@
   },
   "scripts": {
     "start": "node src/server.js",
+    "migrate": "node db/migrate.js",
     "test": "node --test"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
   }
 }

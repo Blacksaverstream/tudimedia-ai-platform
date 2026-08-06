@@ -21,6 +21,9 @@ export class InMemoryAuthStore {
 
   async getUserByEmail(email) { return this.users.get(this.userByEmail.get(email)) ?? null; }
   async getUser(id) { return this.users.get(id) ?? null; }
+  async getOrganization(id) { return this.organizations.get(id) ?? null; }
+
+  async transaction(work) { return work(this); }
 
   async createOrganization({ name, slug }) {
     if (this.organizationBySlug.has(slug)) return null;

@@ -2,6 +2,7 @@ import http from "node:http";
 import { AuthService } from "./auth/auth-service.js";
 import { AuthError } from "./auth/errors.js";
 import { InMemoryAuthStore } from "./auth/in-memory-store.js";
+import { PostgresAuthStore } from "./auth/postgres-store.js";
 import * as passwords from "./auth/passwords.js";
 import { createTokenService } from "./auth/tokens.js";
 
@@ -11,9 +12,10 @@ const tokenSecret = process.env.AUTH_TOKEN_SECRET;
 const sessionPepper = process.env.AUTH_SESSION_PEPPER;
 if (!tokenSecret || !sessionPepper) throw new Error("AUTH_TOKEN_SECRET and AUTH_SESSION_PEPPER are required.");
 
-// Replace InMemoryAuthStore with a PostgreSQL repository implementing the same methods before production deployment.
-if (production) throw new Error("A PostgreSQL authentication repository must be configured for production.");
-const store = new InMemoryAuthStore();
+if (production && !process.env.DATABASE_URL) throw new Error("DATABASE_URL is required in production.");
+const store = production
+  ? new PostgresAuthStore(new (await import("pg")).Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === "false" ? false : undefined }))
+  : new InMemoryAuthStore();
 const auth = new AuthService({ store, passwords, sessionPepper, tokens: createTokenService({ secret: tokenSecret, issuer: "tudimedia-api", audience: "tudimedia-web" }) });
 
 const readBody = async (request) => {
