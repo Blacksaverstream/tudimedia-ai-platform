@@ -26,6 +26,8 @@ The initial platform implementation uses a self-hosted credential provider backe
 
 Uploads use short-lived signed URLs into private object storage. Object keys begin with the authenticated organization ID and a server-generated asset ID. The completion flow verifies stored size, media type, and an optional SHA-256 checksum before it creates an idempotent malware-scan job. A file must not become available for preview, AI processing, or publishing until scanning succeeds.
 
+Media processing uses argument-array process execution without a command shell. Files are held only in worker-created temporary directories and removed after each attempt. Detected malware is rejected before FFmpeg runs, and scanner infrastructure failures keep the asset unavailable while the job retries.
+
 ## Incident readiness
 
 Maintain incident runbooks, on-call ownership, log retention, evidence preservation, breach-assessment procedures, and regular access reviews. Test backup restoration and response processes on a planned cadence.

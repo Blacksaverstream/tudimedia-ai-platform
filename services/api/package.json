@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node src/server.js",
     "migrate": "node db/migrate.js",
+    "worker:media": "node src/media-worker.js",
     "test": "node --test"
   },
   "dependencies": {

@@ -1,4 +1,6 @@
-import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { createReadStream, createWriteStream } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export class S3ObjectStorage {
@@ -20,6 +22,13 @@ export class S3ObjectStorage {
       if (error?.name === "NotFound" || error?.name === "NoSuchKey" || error?.$metadata?.httpStatusCode === 404) return null;
       throw error;
     }
+  }
+  async downloadToFile(key, filePath) {
+    const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    await pipeline(result.Body, createWriteStream(filePath, { flags: "wx" }));
+  }
+  async uploadFile({ key, filePath, mimeType }) {
+    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: createReadStream(filePath), ContentType: mimeType }));
   }
 }
 
