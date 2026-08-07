@@ -43,6 +43,11 @@ const refreshCookie = (token) => `refresh_token=${token}; HttpOnly; Path=/api/v1
 
 const server = http.createServer(async (request, response) => {
   try {
+    if (request.method === "GET" && request.url === "/healthz") return send(response, 200, { status: "ok" });
+    if (request.method === "GET" && request.url === "/readyz") {
+      if (databasePool) await databasePool.query("SELECT 1");
+      return send(response, 200, { status: "ready" });
+    }
     const body = await readBody(request);
     if (request.method === "POST" && request.url === "/api/v1/auth/sign-up") {
       const result = await auth.signUp(body);

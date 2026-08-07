@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: tudimedia
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: tudimedia-api } }
+  template:
+    metadata: { labels: { app: tudimedia-api } }
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: api
+          image: ghcr.io/blacksaverstream/tudimedia-api:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: tudimedia-config }
+            - secretRef: { name: tudimedia-secrets }
+          ports: [{ name: http, containerPort: 3000 }]
+          readinessProbe: { httpGet: { path: /readyz, port: http }, periodSeconds: 5, timeoutSeconds: 2 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 10, timeoutSeconds: 2 }
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: tudimedia
+spec:
+  selector: { app: tudimedia-api }
+  ports: [{ name: http, port: 80, targetPort: http }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+  namespace: tudimedia
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: api }
+  minReplicas: 3
+  maxReplicas: 50
+  behavior:
+    scaleDown: { stabilizationWindowSeconds: 300 }
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 65 }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+  namespace: tudimedia
+spec:
+  minAvailable: 2
+  selector: { matchLabels: { app: tudimedia-api } }

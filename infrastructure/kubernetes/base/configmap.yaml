@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tudimedia-config
+  namespace: tudimedia
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  S3_REGION: us-east-1
+  AI_REVIEW_THRESHOLD: "0.75"
+  CLAMD_SCAN_PATH: clamscan

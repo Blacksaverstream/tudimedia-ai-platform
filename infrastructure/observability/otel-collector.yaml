@@ -1,0 +1,20 @@
+receivers:
+  otlp:
+    protocols:
+      grpc: {}
+      http: {}
+processors:
+  memory_limiter: { check_interval: 1s, limit_mib: 512 }
+  batch: {}
+  resource:
+    attributes:
+      - { key: service.namespace, value: tudimedia, action: upsert }
+exporters:
+  prometheus: { endpoint: 0.0.0.0:9464 }
+  otlp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    tls: { insecure: false }
+service:
+  pipelines:
+    metrics: { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [prometheus, otlp] }
+    traces: { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlp] }
