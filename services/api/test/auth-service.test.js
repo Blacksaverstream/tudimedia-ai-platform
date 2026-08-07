@@ -57,3 +57,36 @@ test("sign-out revokes the session behind an access token", async () => {
   await auth.signOut({ refreshToken: result.refreshToken });
   await assert.rejects(() => auth.authenticate(result.accessToken), (error) => error instanceof AuthError && error.code === "AUTH_UNAUTHORIZED");
 });
+
+test("owners can manage member roles and removal revokes tenant sessions", async () => {
+  const { auth, store } = createAuth();
+  const owner = await auth.signUp({ email: "owner@example.com", password: "a strong password", organizationName: "Tudi Media" });
+  const member = await auth.signUp({ email: "member@example.com", password: "another strong password", organizationName: "Other Media" });
+  const actor = await auth.authenticate(owner.accessToken);
+  await auth.addMembership({ actor, email: member.user.email, role: "viewer" });
+  const signedIn = await auth.signIn({ email: member.user.email, password: "another strong password", organizationId: owner.organization.id });
+
+  const updated = await auth.updateMembership({ actor, userId: member.user.id, role: "editor" });
+  assert.equal(updated.role, "editor");
+  await assert.rejects(() => auth.authenticate(signedIn.accessToken), (error) => error.code === "AUTH_UNAUTHORIZED");
+  await auth.removeMembership({ actor, userId: member.user.id });
+  assert.equal(await store.getMembership(owner.organization.id, member.user.id), null);
+  assert.deepEqual(store.auditEvents.slice(-2).map((event) => event.action), ["organization.membership_role_changed", "organization.membership_removed"]);
+});
+
+test("members can list their tenant and users can update their own profile", async () => {
+  const { auth } = createAuth();
+  const owner = await auth.signUp({ email: "owner@example.com", password: "a strong password", organizationName: "Tudi Media" });
+  const actor = await auth.authenticate(owner.accessToken);
+  assert.equal((await auth.listMemberships({ actor })).length, 1);
+  assert.equal((await auth.updateProfile({ actor, displayName: "Tudi Owner" })).displayName, "Tudi Owner");
+  assert.equal((await auth.updateOrganization({ actor, name: "TudiMedia Studio" })).name, "TudiMedia Studio");
+});
+
+test("owner membership cannot be demoted or removed", async () => {
+  const { auth } = createAuth();
+  const owner = await auth.signUp({ email: "owner@example.com", password: "a strong password", organizationName: "Tudi Media" });
+  const actor = await auth.authenticate(owner.accessToken);
+  await assert.rejects(() => auth.updateMembership({ actor, userId: actor.userId, role: "admin" }), (error) => error.code === "AUTH_FORBIDDEN");
+  await assert.rejects(() => auth.removeMembership({ actor, userId: actor.userId }), (error) => error.code === "AUTH_FORBIDDEN");
+});

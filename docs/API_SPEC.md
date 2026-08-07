@@ -29,6 +29,11 @@
 | `POST /auth/sign-out` | Revoke the current refresh session. |
 | `GET /auth/me` | Return the authenticated user context. |
 | `POST /organizations/members` | Add an existing user as an organization member; owner/admin only. |
+| `GET /organizations/members` | List tenant members; all organization roles. |
+| `PATCH /organizations/members/{userId}` | Change a non-owner member role; owner/admin only. |
+| `DELETE /organizations/members/{userId}` | Remove a non-owner member and revoke their tenant sessions. |
+| `PATCH /organizations/current` | Rename the current organization; owner only. |
+| `PATCH /users/me` | Update the authenticated user's display name. |
 
 Access tokens are short-lived signed bearer tokens. Refresh tokens are opaque, stored only in an `HttpOnly`, `SameSite=Strict` cookie, and rotated on every use.
 
