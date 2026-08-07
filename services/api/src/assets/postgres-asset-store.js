@@ -33,6 +33,27 @@ export class PostgresAssetStore {
        FROM assets WHERE organization_id = $1 AND id = $2`, [organizationId, id]
     );
   }
+  async listAssets({ organizationId, beforeCreatedAt = null, beforeId = null, limit, status = null, mediaType = null }) {
+    const result = await this.queryable.query(
+      `SELECT id, organization_id AS "organizationId", created_by_user_id AS "createdByUserId", name,
+        original_filename AS "originalFilename", mime_type AS "mimeType", size_bytes::text AS "sizeBytes", status,
+        rejection_reason AS "rejectionReason", created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM assets WHERE organization_id = $1 AND ($2::asset_status IS NULL OR status = $2)
+         AND ($3::text IS NULL OR mime_type LIKE ($3 || '/%'))
+         AND ($4::timestamptz IS NULL OR (created_at, id) < ($4, $5::uuid))
+       ORDER BY created_at DESC, id DESC LIMIT $6`, [organizationId, status, mediaType, beforeCreatedAt, beforeId, limit]);
+    return result.rows;
+  }
+  async getDashboard(organizationId) {
+    return this.oneOrNull(`SELECT count(*)::int AS "assetCount", count(*) FILTER (WHERE status = 'ready')::int AS "readyCount",
+      count(*) FILTER (WHERE status IN ('queued','processing'))::int AS "processingCount", coalesce(sum(size_bytes),0)::text AS "storageBytes"
+      FROM assets WHERE organization_id = $1`, [organizationId]);
+  }
+  async createCollection(collection) { return this.oneOrNull(`INSERT INTO collections (id, organization_id, created_by_user_id, name, description) VALUES ($1,$2,$3,$4,$5)
+    RETURNING id, organization_id AS "organizationId", created_by_user_id AS "createdByUserId", name, description, created_at AS "createdAt", updated_at AS "updatedAt"`, [collection.id, collection.organizationId, collection.createdByUserId, collection.name, collection.description]); }
+  async getCollection(organizationId, id) { return this.oneOrNull(`SELECT id, organization_id AS "organizationId", name, description, created_at AS "createdAt" FROM collections WHERE organization_id=$1 AND id=$2`, [organizationId,id]); }
+  async listCollections(organizationId) { const result = await this.queryable.query(`SELECT c.id, c.name, c.description, c.created_at AS "createdAt", count(ca.asset_id)::int AS "assetCount" FROM collections c LEFT JOIN collection_assets ca ON ca.collection_id=c.id WHERE c.organization_id=$1 GROUP BY c.id ORDER BY c.created_at DESC,c.id DESC`, [organizationId]); return result.rows; }
+  async addCollectionAsset({ collectionId, assetId, addedByUserId }) { const result = await this.queryable.query(`INSERT INTO collection_assets (collection_id, asset_id, added_by_user_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [collectionId,assetId,addedByUserId]); return result.rowCount === 1; }
   async updateAssetStatus({ organizationId, id, status, rejectionReason = null }) {
     return this.oneOrNull(
       `UPDATE assets SET status = $3, rejection_reason = $4, updated_at = now()

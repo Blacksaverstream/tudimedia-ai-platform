@@ -1,4 +1,5 @@
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import { AuthService } from "./auth/auth-service.js";
 import { AuthError } from "./auth/errors.js";
 import { InMemoryAuthStore } from "./auth/in-memory-store.js";
@@ -12,6 +13,7 @@ import { UploadService } from "./assets/upload-service.js";
 import { InMemorySearchStore } from "./search/in-memory-search-store.js";
 import { PostgresSearchStore } from "./search/postgres-search-store.js";
 import { SearchService } from "./search/search-service.js";
+import { WorkspaceService } from "./workspace/workspace-service.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const production = process.env.NODE_ENV === "production";
@@ -29,6 +31,7 @@ const objectStorage = production
 const auth = new AuthService({ store: authStore, passwords, sessionPepper, tokens: createTokenService({ secret: tokenSecret, issuer: "tudimedia-api", audience: "tudimedia-web" }) });
 const uploads = new UploadService({ store: assetStore, objectStorage, maxSizeBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 5 * 1024 * 1024 * 1024) });
 const search = new SearchService({ store: production ? new PostgresSearchStore(databasePool) : new InMemorySearchStore() });
+const workspace = new WorkspaceService({ store: assetStore });
 
 const readBody = async (request) => {
   const chunks = [];
@@ -42,7 +45,11 @@ const send = (response, status, body, headers = {}) => response.writeHead(status
 const refreshCookie = (token) => `refresh_token=${token}; HttpOnly; Path=/api/v1/auth; SameSite=Strict; Max-Age=${30 * 24 * 60 * 60}${production ? "; Secure" : ""}`;
 
 const server = http.createServer(async (request, response) => {
+  const suppliedRequestId = request.headers["x-request-id"];
+  const requestId = typeof suppliedRequestId === "string" && /^[A-Za-z0-9._-]{1,64}$/.test(suppliedRequestId) ? suppliedRequestId : randomUUID();
+  response.setHeader("x-request-id", requestId);
   try {
+    const url = new URL(request.url, "http://tudimedia.local");
     if (request.method === "GET" && request.url === "/healthz") return send(response, 200, { status: "ok" });
     if (request.method === "GET" && request.url === "/readyz") {
       if (databasePool) await databasePool.query("SELECT 1");
@@ -83,6 +90,22 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/api/v1/search") {
       return send(response, 200, await search.search({ actor: await auth.authenticate(bearer(request)), ...body }));
     }
+    if (request.method === "GET" && url.pathname === "/api/v1/dashboard") {
+      return send(response, 200, { summary: await workspace.dashboard({ actor: await auth.authenticate(bearer(request)) }) });
+    }
+    if (request.method === "GET" && url.pathname === "/api/v1/assets") {
+      return send(response, 200, await workspace.listAssets({ actor: await auth.authenticate(bearer(request)), cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit") ?? 24, status: url.searchParams.get("status"), mediaType: url.searchParams.get("mediaType") }));
+    }
+    if (request.method === "GET" && url.pathname === "/api/v1/collections") {
+      return send(response, 200, { collections: await workspace.listCollections({ actor: await auth.authenticate(bearer(request)) }) });
+    }
+    if (request.method === "POST" && url.pathname === "/api/v1/collections") {
+      return send(response, 201, { collection: await workspace.createCollection({ actor: await auth.authenticate(bearer(request)), ...body }) });
+    }
+    const collectionAssetMatch = url.pathname.match(/^\/api\/v1\/collections\/([0-9a-f-]+)\/assets$/i);
+    if (request.method === "POST" && collectionAssetMatch) {
+      return send(response, 201, await workspace.addCollectionAsset({ actor: await auth.authenticate(bearer(request)), collectionId: collectionAssetMatch[1], assetId: body.assetId }));
+    }
     const completeMatch = request.url?.match(/^\/api\/v1\/assets\/([0-9a-f-]+)\/upload-complete$/i);
     if (request.method === "POST" && completeMatch) {
       return send(response, 202, await uploads.completeUpload({ actor: await auth.authenticate(bearer(request)), assetId: completeMatch[1] }));
@@ -95,11 +118,11 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "GET" && assetMatch) {
       return send(response, 200, { asset: await uploads.getAsset({ actor: await auth.authenticate(bearer(request)), assetId: assetMatch[1] }) });
     }
-    return send(response, 404, { error: { code: "NOT_FOUND", message: "Route not found." } });
+    return send(response, 404, { error: { code: "NOT_FOUND", message: "Route not found.", requestId } });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 500;
     const code = error instanceof AuthError ? error.code : "INTERNAL_ERROR";
-    return send(response, status, { error: { code, message: status === 500 ? "An unexpected error occurred." : error.message } });
+    return send(response, status, { error: { code, message: status === 500 ? "An unexpected error occurred." : error.message, requestId } });
   }
 });
 

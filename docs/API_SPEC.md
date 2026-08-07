@@ -16,6 +16,8 @@
 | Uploads | `POST /uploads`, `POST /uploads/{id}/complete` |
 | Search | `POST /search` |
 | Collections | `GET/POST /collections`, `GET/PATCH /collections/{id}` |
+
+`GET /dashboard` returns tenant asset, readiness, processing, and storage totals. `GET /assets` uses opaque cursor pagination and accepts `limit`, `status`, and `mediaType`. `GET/POST /collections` lists or creates tenant collections; `POST /collections/{id}/assets` adds an authorized tenant asset idempotently.
 | Reviews | `POST /assets/{id}/reviews`, `POST /reviews/{id}/approve` |
 | Webhooks | `GET/POST /webhooks`, `DELETE /webhooks/{id}` |
 
