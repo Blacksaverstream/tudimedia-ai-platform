@@ -109,6 +109,51 @@ export class AuthService {
     return membership;
   }
 
+  async listMemberships({ actor }) {
+    requirePermission(actor.role, "members:read");
+    return this.store.listMemberships(actor.organizationId);
+  }
+
+  async updateMembership({ actor, userId, role }) {
+    requirePermission(actor.role, "members:manage");
+    if (!isRole(role) || role === Roles.OWNER) throw new AuthError("AUTH_VALIDATION", "Select a valid non-owner role.", 422);
+    const current = await this.store.getMembership(actor.organizationId, userId);
+    if (!current) throw new AuthError("AUTH_MEMBERSHIP_NOT_FOUND", "Membership not found.", 404);
+    if (current.role === Roles.OWNER) throw forbidden("The organization owner role cannot be changed.");
+    const previousRole = current.role;
+    const membership = await this.store.updateMembershipRole({ organizationId: actor.organizationId, userId, role });
+    await this.store.revokeUserSessions(actor.organizationId, userId, this.clock());
+    await this.audit(this.store, "organization.membership_role_changed", { organizationId: actor.organizationId, actorUserId: actor.userId, targetUserId: userId, metadata: { previousRole, role } });
+    return membership;
+  }
+
+  async removeMembership({ actor, userId }) {
+    requirePermission(actor.role, "members:manage");
+    const current = await this.store.getMembership(actor.organizationId, userId);
+    if (!current) throw new AuthError("AUTH_MEMBERSHIP_NOT_FOUND", "Membership not found.", 404);
+    if (current.role === Roles.OWNER || userId === actor.userId) throw forbidden("The owner or current member cannot be removed by this operation.");
+    await this.store.deleteMembership(actor.organizationId, userId);
+    await this.store.revokeUserSessions(actor.organizationId, userId, this.clock());
+    await this.audit(this.store, "organization.membership_removed", { organizationId: actor.organizationId, actorUserId: actor.userId, targetUserId: userId, metadata: { role: current.role } });
+  }
+
+  async updateOrganization({ actor, name }) {
+    requirePermission(actor.role, "organization:manage");
+    const normalizedName = String(name ?? "").trim();
+    if (normalizedName.length < 2 || normalizedName.length > 120) throw new AuthError("AUTH_VALIDATION", "Organization name must be between 2 and 120 characters.", 422);
+    const organization = await this.store.updateOrganization({ id: actor.organizationId, name: normalizedName });
+    await this.audit(this.store, "organization.updated", { organizationId: actor.organizationId, actorUserId: actor.userId, metadata: { name: normalizedName } });
+    return organization;
+  }
+
+  async updateProfile({ actor, displayName }) {
+    const normalizedName = String(displayName ?? "").trim();
+    if (normalizedName.length < 1 || normalizedName.length > 100) throw new AuthError("AUTH_VALIDATION", "Display name must be between 1 and 100 characters.", 422);
+    const user = await this.store.updateUser({ id: actor.userId, displayName: normalizedName });
+    await this.audit(this.store, "user.profile_updated", { organizationId: actor.organizationId, actorUserId: actor.userId, targetUserId: actor.userId });
+    return { id: user.id, email: user.email, displayName: user.displayName };
+  }
+
   async createSession(store, { user, organization, role }) {
     const id = randomUUID();
     const secret = randomBytes(32).toString("base64url");

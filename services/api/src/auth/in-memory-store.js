@@ -43,6 +43,21 @@ export class InMemoryAuthStore {
   }
 
   async getMembership(organizationId, userId) { return this.memberships.get(this.membershipKey(organizationId, userId)) ?? null; }
+  async listMemberships(organizationId) {
+    return [...this.memberships.values()].filter((item) => item.organizationId === organizationId).map((item) => ({ ...item, email: this.users.get(item.userId)?.email }));
+  }
+  async updateMembershipRole({ organizationId, userId, role }) {
+    const membership = await this.getMembership(organizationId, userId);
+    if (!membership) return null;
+    membership.role = role;
+    return membership;
+  }
+  async deleteMembership(organizationId, userId) { return this.memberships.delete(this.membershipKey(organizationId, userId)); }
+  async revokeUserSessions(organizationId, userId, now) {
+    for (const session of this.sessions.values()) if (session.organizationId === organizationId && session.userId === userId && !session.revokedAt) session.revokedAt = now;
+  }
+  async updateOrganization({ id, name }) { const organization = this.organizations.get(id); if (!organization) return null; organization.name = name; return organization; }
+  async updateUser({ id, displayName }) { const user = this.users.get(id); if (!user) return null; user.displayName = displayName; return user; }
 
   async createSession(session) { this.sessions.set(session.id, { ...session }); return this.sessions.get(session.id); }
   async getSession(id) { return this.sessions.get(id) ?? null; }

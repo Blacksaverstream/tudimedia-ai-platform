@@ -61,10 +61,16 @@ const server = http.createServer(async (request, response) => {
       return send(response, 204, {}, { "set-cookie": "refresh_token=; HttpOnly; Path=/api/v1/auth; SameSite=Strict; Max-Age=0" });
     }
     if (request.method === "GET" && request.url === "/api/v1/auth/me") return send(response, 200, { actor: await auth.authenticate(bearer(request)) });
+    if (request.method === "PATCH" && request.url === "/api/v1/users/me") return send(response, 200, { user: await auth.updateProfile({ actor: await auth.authenticate(bearer(request)), ...body }) });
     if (request.method === "POST" && request.url === "/api/v1/organizations/members") {
       const membership = await auth.addMembership({ actor: await auth.authenticate(bearer(request)), ...body });
       return send(response, 201, { membership });
     }
+    if (request.method === "GET" && request.url === "/api/v1/organizations/members") return send(response, 200, { members: await auth.listMemberships({ actor: await auth.authenticate(bearer(request)) }) });
+    if (request.method === "PATCH" && request.url === "/api/v1/organizations/current") return send(response, 200, { organization: await auth.updateOrganization({ actor: await auth.authenticate(bearer(request)), ...body }) });
+    const memberMatch = request.url?.match(/^\/api\/v1\/organizations\/members\/([0-9a-f-]+)$/i);
+    if (request.method === "PATCH" && memberMatch) return send(response, 200, { membership: await auth.updateMembership({ actor: await auth.authenticate(bearer(request)), userId: memberMatch[1], ...body }) });
+    if (request.method === "DELETE" && memberMatch) { await auth.removeMembership({ actor: await auth.authenticate(bearer(request)), userId: memberMatch[1] }); return send(response, 204, {}); }
     if (request.method === "POST" && request.url === "/api/v1/assets/upload-intents") {
       const result = await uploads.createUploadIntent({ actor: await auth.authenticate(bearer(request)), ...body });
       return send(response, 201, result);

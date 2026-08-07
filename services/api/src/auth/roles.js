@@ -3,10 +3,10 @@ import { forbidden } from "./errors.js";
 export const Roles = Object.freeze({ OWNER: "owner", ADMIN: "admin", EDITOR: "editor", VIEWER: "viewer" });
 
 const grants = Object.freeze({
-  [Roles.OWNER]: ["organization:manage", "members:manage", "assets:read", "assets:write"],
-  [Roles.ADMIN]: ["members:manage", "assets:read", "assets:write"],
-  [Roles.EDITOR]: ["assets:read", "assets:write"],
-  [Roles.VIEWER]: ["assets:read"]
+  [Roles.OWNER]: ["organization:manage", "members:read", "members:manage", "assets:read", "assets:write"],
+  [Roles.ADMIN]: ["members:read", "members:manage", "assets:read", "assets:write"],
+  [Roles.EDITOR]: ["members:read", "assets:read", "assets:write"],
+  [Roles.VIEWER]: ["members:read", "assets:read"]
 });
 
 export function isRole(value) {

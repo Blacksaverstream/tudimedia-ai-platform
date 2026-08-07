@@ -69,6 +69,37 @@ export class PostgresAuthStore {
     );
   }
 
+  async listMemberships(organizationId) {
+    const result = await this.queryable.query(
+      `SELECT m.id, m.organization_id AS "organizationId", m.user_id AS "userId", m.role,
+        m.created_at AS "createdAt", u.email, u.display_name AS "displayName"
+       FROM organization_memberships m JOIN users u ON u.id = m.user_id
+       WHERE m.organization_id = $1 ORDER BY m.created_at, m.id`, [organizationId]);
+    return result.rows;
+  }
+
+  async updateMembershipRole({ organizationId, userId, role }) {
+    return this.oneOrNull(`UPDATE organization_memberships SET role = $3 WHERE organization_id = $1 AND user_id = $2
+      RETURNING id, organization_id AS "organizationId", user_id AS "userId", role, created_at AS "createdAt"`, [organizationId, userId, role]);
+  }
+
+  async deleteMembership(organizationId, userId) {
+    const result = await this.queryable.query(`DELETE FROM organization_memberships WHERE organization_id = $1 AND user_id = $2`, [organizationId, userId]);
+    return result.rowCount === 1;
+  }
+
+  async revokeUserSessions(organizationId, userId, now) {
+    await this.queryable.query(`UPDATE auth_sessions SET revoked_at = $3 WHERE organization_id = $1 AND user_id = $2 AND revoked_at IS NULL`, [organizationId, userId, now]);
+  }
+
+  async updateOrganization({ id, name }) {
+    return this.oneOrNull(`UPDATE organizations SET name = $2, updated_at = now() WHERE id = $1 RETURNING id, name, slug, created_at AS "createdAt", updated_at AS "updatedAt"`, [id, name]);
+  }
+
+  async updateUser({ id, displayName }) {
+    return this.oneOrNull(`UPDATE users SET display_name = $2, updated_at = now() WHERE id = $1 RETURNING id, email, display_name AS "displayName", created_at AS "createdAt", updated_at AS "updatedAt"`, [id, displayName]);
+  }
+
   async createSession({ rawRefreshToken: _rawRefreshToken, ...session }) {
     return this.oneOrNull(
       `INSERT INTO auth_sessions (id, organization_id, user_id, role, refresh_hash, expires_at, last_used_at, created_at)
