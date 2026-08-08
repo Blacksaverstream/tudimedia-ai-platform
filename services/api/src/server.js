@@ -14,6 +14,9 @@ import { InMemorySearchStore } from "./search/in-memory-search-store.js";
 import { PostgresSearchStore } from "./search/postgres-search-store.js";
 import { SearchService } from "./search/search-service.js";
 import { WorkspaceService } from "./workspace/workspace-service.js";
+import { InMemoryOperationsStore } from "./operations/in-memory-operations-store.js";
+import { PostgresOperationsStore } from "./operations/postgres-operations-store.js";
+import { OperationsService } from "./operations/operations-service.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const production = process.env.NODE_ENV === "production";
@@ -32,6 +35,7 @@ const auth = new AuthService({ store: authStore, passwords, sessionPepper, token
 const uploads = new UploadService({ store: assetStore, objectStorage, maxSizeBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 5 * 1024 * 1024 * 1024) });
 const search = new SearchService({ store: production ? new PostgresSearchStore(databasePool) : new InMemorySearchStore() });
 const workspace = new WorkspaceService({ store: assetStore });
+const operations = new OperationsService({ store: production ? new PostgresOperationsStore(databasePool) : new InMemoryOperationsStore(), assetStore });
 
 const readBody = async (request) => {
   const chunks = [];
@@ -102,6 +106,19 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && url.pathname === "/api/v1/collections") {
       return send(response, 201, { collection: await workspace.createCollection({ actor: await auth.authenticate(bearer(request)), ...body }) });
     }
+    if (request.method === "GET" && url.pathname === "/api/v1/billing/subscription") return send(response, 200, { subscription: await operations.getSubscription({ actor: await auth.authenticate(bearer(request)) }) });
+    if (request.method === "PUT" && url.pathname === "/api/v1/billing/subscription") return send(response, 200, { subscription: await operations.setSubscription({ actor: await auth.authenticate(bearer(request)), ...body }) });
+    if (request.method === "POST" && url.pathname === "/api/v1/billing/usage") return send(response, 202, { usage: await operations.recordUsage({ actor: await auth.authenticate(bearer(request)), ...body }) });
+    if (request.method === "GET" && url.pathname === "/api/v1/notifications") return send(response, 200, { notifications: await operations.notifications({ actor: await auth.authenticate(bearer(request)) }) });
+    if (request.method === "POST" && url.pathname === "/api/v1/notifications") return send(response, 201, { notification: await operations.notify({ actor: await auth.authenticate(bearer(request)), ...body }) });
+    const notificationReadMatch = url.pathname.match(/^\/api\/v1\/notifications\/([0-9a-f-]+)\/read$/i);
+    if (request.method === "PATCH" && notificationReadMatch) return send(response, 200, { notification: await operations.readNotification({ actor: await auth.authenticate(bearer(request)), notificationId: notificationReadMatch[1] }) });
+    const translationMatch = url.pathname.match(/^\/api\/v1\/assets\/([0-9a-f-]+)\/translations$/i);
+    if (request.method === "POST" && translationMatch) return send(response, 202, { job: await operations.requestTranslation({ actor: await auth.authenticate(bearer(request)), assetId: translationMatch[1], ...body }) });
+    if (request.method === "POST" && url.pathname === "/api/v1/renders") return send(response, 202, { job: await operations.requestRender({ actor: await auth.authenticate(bearer(request)), ...body }) });
+    if (request.method === "GET" && url.pathname === "/api/v1/admin/operations") return send(response, 200, await operations.adminOverview({ actor: await auth.authenticate(bearer(request)) }));
+    const cancelJobMatch = url.pathname.match(/^\/api\/v1\/operations\/([0-9a-f-]+)\/cancel$/i);
+    if (request.method === "POST" && cancelJobMatch) return send(response, 200, { job: await operations.cancelJob({ actor: await auth.authenticate(bearer(request)), jobId: cancelJobMatch[1] }) });
     const collectionAssetMatch = url.pathname.match(/^\/api\/v1\/collections\/([0-9a-f-]+)\/assets$/i);
     if (request.method === "POST" && collectionAssetMatch) {
       return send(response, 201, await workspace.addCollectionAsset({ actor: await auth.authenticate(bearer(request)), collectionId: collectionAssetMatch[1], assetId: body.assetId }));
