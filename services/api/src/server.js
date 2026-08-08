@@ -17,6 +17,7 @@ import { WorkspaceService } from "./workspace/workspace-service.js";
 import { InMemoryOperationsStore } from "./operations/in-memory-operations-store.js";
 import { PostgresOperationsStore } from "./operations/postgres-operations-store.js";
 import { OperationsService } from "./operations/operations-service.js";
+import { BillingWebhookService } from "./operations/billing-webhook-service.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const production = process.env.NODE_ENV === "production";
@@ -35,13 +36,16 @@ const auth = new AuthService({ store: authStore, passwords, sessionPepper, token
 const uploads = new UploadService({ store: assetStore, objectStorage, maxSizeBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 5 * 1024 * 1024 * 1024) });
 const search = new SearchService({ store: production ? new PostgresSearchStore(databasePool) : new InMemorySearchStore() });
 const workspace = new WorkspaceService({ store: assetStore });
-const operations = new OperationsService({ store: production ? new PostgresOperationsStore(databasePool) : new InMemoryOperationsStore(), assetStore });
+const operationsStore = production ? new PostgresOperationsStore(databasePool) : new InMemoryOperationsStore();
+const operations = new OperationsService({ store: operationsStore, assetStore });
+const billingWebhooks = process.env.BILLING_WEBHOOK_SECRET ? new BillingWebhookService({ store: operationsStore, secret: process.env.BILLING_WEBHOOK_SECRET }) : null;
 
 const readBody = async (request) => {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
   if (!chunks.length) return {};
-  try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { throw new AuthError("REQUEST_INVALID_JSON", "Request body must be valid JSON.", 400); }
+  const raw = Buffer.concat(chunks).toString("utf8");
+  try { const parsed=JSON.parse(raw);Object.defineProperty(parsed,"__raw",{value:raw});return parsed; } catch { throw new AuthError("REQUEST_INVALID_JSON", "Request body must be valid JSON.", 400); }
 };
 const cookie = (request, name) => request.headers.cookie?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1);
 const bearer = (request) => request.headers.authorization?.startsWith("Bearer ") ? request.headers.authorization.slice(7) : undefined;
@@ -109,6 +113,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "GET" && url.pathname === "/api/v1/billing/subscription") return send(response, 200, { subscription: await operations.getSubscription({ actor: await auth.authenticate(bearer(request)) }) });
     if (request.method === "PUT" && url.pathname === "/api/v1/billing/subscription") return send(response, 200, { subscription: await operations.setSubscription({ actor: await auth.authenticate(bearer(request)), ...body }) });
     if (request.method === "POST" && url.pathname === "/api/v1/billing/usage") return send(response, 202, { usage: await operations.recordUsage({ actor: await auth.authenticate(bearer(request)), ...body }) });
+    if (request.method === "POST" && url.pathname === "/api/v1/billing/webhooks") { if(!billingWebhooks) throw new AuthError("BILLING_WEBHOOK_UNAVAILABLE","Billing webhooks are not configured.",503); return send(response,200,await billingWebhooks.handle({rawBody:body.__raw,signature:request.headers["x-billing-signature"]})); }
     if (request.method === "GET" && url.pathname === "/api/v1/notifications") return send(response, 200, { notifications: await operations.notifications({ actor: await auth.authenticate(bearer(request)) }) });
     if (request.method === "POST" && url.pathname === "/api/v1/notifications") return send(response, 201, { notification: await operations.notify({ actor: await auth.authenticate(bearer(request)), ...body }) });
     const notificationReadMatch = url.pathname.match(/^\/api\/v1\/notifications\/([0-9a-f-]+)\/read$/i);

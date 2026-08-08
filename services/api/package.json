@@ -12,6 +12,8 @@
     "migrate": "node db/migrate.js",
     "worker:media": "node src/media-worker.js",
     "worker:ai": "node src/ai-worker.js",
+    "worker:operations": "node src/operations-worker.js",
+    "worker:notifications": "node src/notification-worker-entry.js",
     "test": "node --test"
   },
   "dependencies": {

@@ -33,3 +33,39 @@ spec:
           envFrom: [{ configMapRef: { name: tudimedia-config } }, { secretRef: { name: tudimedia-secrets } }]
           resources: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "2", memory: 2Gi } }
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: operations-worker, namespace: tudimedia }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: tudimedia-operations-worker } }
+  template:
+    metadata: { labels: { app: tudimedia-operations-worker } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: worker
+          image: ghcr.io/blacksaverstream/tudimedia-api:latest
+          command: ["node", "src/operations-worker.js"]
+          envFrom: [{ configMapRef: { name: tudimedia-config } }, { secretRef: { name: tudimedia-secrets } }]
+          resources: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "2", memory: 2Gi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: notification-worker, namespace: tudimedia }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: tudimedia-notification-worker } }
+  template:
+    metadata: { labels: { app: tudimedia-notification-worker } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: worker
+          image: ghcr.io/blacksaverstream/tudimedia-api:latest
+          command: ["node", "src/notification-worker-entry.js"]
+          envFrom: [{ configMapRef: { name: tudimedia-config } }, { secretRef: { name: tudimedia-secrets } }]
+          resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }

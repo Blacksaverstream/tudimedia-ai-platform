@@ -47,6 +47,16 @@ services:
     env_file: ../../.env
     depends_on:
       postgres: { condition: service_healthy }
+  operations-worker:
+    build: { context: ../../services/api }
+    command: ["node", "src/operations-worker.js"]
+    env_file: ../../.env
+    depends_on: { postgres: { condition: service_healthy } }
+  notification-worker:
+    build: { context: ../../services/api }
+    command: ["node", "src/notification-worker-entry.js"]
+    env_file: ../../.env
+    depends_on: { postgres: { condition: service_healthy } }
 volumes:
   postgres-data:
   minio-data:
