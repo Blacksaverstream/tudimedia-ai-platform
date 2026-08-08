@@ -115,6 +115,8 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && url.pathname === "/api/v1/billing/usage") return send(response, 202, { usage: await operations.recordUsage({ actor: await auth.authenticate(bearer(request)), ...body }) });
     if (request.method === "POST" && url.pathname === "/api/v1/billing/webhooks") { if(!billingWebhooks) throw new AuthError("BILLING_WEBHOOK_UNAVAILABLE","Billing webhooks are not configured.",503); return send(response,200,await billingWebhooks.handle({rawBody:body.__raw,signature:request.headers["x-billing-signature"]})); }
     if (request.method === "GET" && url.pathname === "/api/v1/notifications") return send(response, 200, { notifications: await operations.notifications({ actor: await auth.authenticate(bearer(request)) }) });
+    if (request.method === "GET" && url.pathname === "/api/v1/notification-preferences") return send(response, 200, { preferences: await operations.notificationPreferences({ actor: await auth.authenticate(bearer(request)) }) });
+    if (request.method === "PUT" && url.pathname === "/api/v1/notification-preferences") return send(response, 200, { preference: await operations.setNotificationPreference({ actor: await auth.authenticate(bearer(request)), ...body }) });
     if (request.method === "POST" && url.pathname === "/api/v1/notifications") return send(response, 201, { notification: await operations.notify({ actor: await auth.authenticate(bearer(request)), ...body }) });
     const notificationReadMatch = url.pathname.match(/^\/api\/v1\/notifications\/([0-9a-f-]+)\/read$/i);
     if (request.method === "PATCH" && notificationReadMatch) return send(response, 200, { notification: await operations.readNotification({ actor: await auth.authenticate(bearer(request)), notificationId: notificationReadMatch[1] }) });
@@ -122,6 +124,11 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && translationMatch) return send(response, 202, { job: await operations.requestTranslation({ actor: await auth.authenticate(bearer(request)), assetId: translationMatch[1], ...body }) });
     if (request.method === "POST" && url.pathname === "/api/v1/renders") return send(response, 202, { job: await operations.requestRender({ actor: await auth.authenticate(bearer(request)), ...body }) });
     if (request.method === "GET" && url.pathname === "/api/v1/admin/operations") return send(response, 200, await operations.adminOverview({ actor: await auth.authenticate(bearer(request)) }));
+    if (request.method === "POST" && url.pathname === "/api/v1/admin/provider-reconciliations") return send(response, 201, { reconciliation: await operations.reconcileProvider({ actor: await auth.authenticate(bearer(request)), ...body }) });
+    const operationMatch = url.pathname.match(/^\/api\/v1\/operations\/([0-9a-f-]+)$/i);
+    if (request.method === "GET" && operationMatch) return send(response, 200, { job: await operations.job({ actor: await auth.authenticate(bearer(request)), jobId: operationMatch[1] }) });
+    const retryJobMatch = url.pathname.match(/^\/api\/v1\/operations\/([0-9a-f-]+)\/retry$/i);
+    if (request.method === "POST" && retryJobMatch) return send(response, 200, { job: await operations.retryJob({ actor: await auth.authenticate(bearer(request)), jobId: retryJobMatch[1] }) });
     const cancelJobMatch = url.pathname.match(/^\/api\/v1\/operations\/([0-9a-f-]+)\/cancel$/i);
     if (request.method === "POST" && cancelJobMatch) return send(response, 200, { job: await operations.cancelJob({ actor: await auth.authenticate(bearer(request)), jobId: cancelJobMatch[1] }) });
     const collectionAssetMatch = url.pathname.match(/^\/api\/v1\/collections\/([0-9a-f-]+)\/assets$/i);
