@@ -80,3 +80,5 @@ Webhook event names use past tense, e.g. `asset.processed`, `asset.enrichment.co
 - `GET /admin/operations` returns tenant subscription and job state for owners/admins; `POST /operations/{id}/cancel` cancels queued or failed jobs.
 
 Billing providers call `POST /billing/webhooks` with `x-billing-signature: t=<unix-seconds>,v1=<hex-hmac>`. The HMAC-SHA256 input is `<timestamp>.<raw-json-body>` and events are persisted idempotently before subscription state changes. Translation/render and notification workers claim rows with `FOR UPDATE SKIP LOCKED`, retry with bounded backoff, and use job/delivery IDs as provider idempotency keys.
+
+Operational governance endpoints expose `GET /operations/{id}` for tenant-scoped job timelines and signed output metadata, `POST /operations/{id}/retry` for owner/admin recovery of failed or dead-lettered work, and `POST /admin/provider-reconciliations` for drift records. Users manage delivery routing through `GET|PUT /notification-preferences`; configured preferences replace the default in-app delivery.
