@@ -1,0 +1,5 @@
+export class NotificationWorker {
+  constructor({ store, provider, workerId, clock=()=>new Date() }) { this.store=store;this.provider=provider;this.workerId=workerId;this.clock=clock; }
+  async processNext() { const delivery=await this.store.claimDelivery({workerId:this.workerId,now:this.clock()});if(!delivery)return false;try{const result=await this.provider.send(delivery);await this.store.completeDelivery({id:delivery.id,providerMessageId:result.messageId,now:this.clock()});return true;}catch(error){await this.store.failDelivery({id:delivery.id,error:String(error.message??error).slice(0,2000),now:this.clock()});return true;} }
+}
+export class HttpNotificationProvider { constructor({endpoint,apiKey}){this.endpoint=endpoint;this.apiKey=apiKey;} async send(delivery){const response=await fetch(`${this.endpoint}/v1/messages`,{method:"POST",headers:{authorization:`Bearer ${this.apiKey}`,"content-type":"application/json","idempotency-key":delivery.id},body:JSON.stringify(delivery)});if(!response.ok)throw new Error(`notification provider returned ${response.status}`);const result=await response.json();return{messageId:String(result.messageId)};} }

@@ -78,3 +78,5 @@ Webhook event names use past tense, e.g. `asset.processed`, `asset.enrichment.co
 - `POST /assets/{id}/translations` queues a source-linked translation with distinct BCP 47 source and target languages.
 - `POST /renders` queues a bounded MP4/WebM render request. Both translation and render requests require an idempotency key.
 - `GET /admin/operations` returns tenant subscription and job state for owners/admins; `POST /operations/{id}/cancel` cancels queued or failed jobs.
+
+Billing providers call `POST /billing/webhooks` with `x-billing-signature: t=<unix-seconds>,v1=<hex-hmac>`. The HMAC-SHA256 input is `<timestamp>.<raw-json-body>` and events are persisted idempotently before subscription state changes. Translation/render and notification workers claim rows with `FOR UPDATE SKIP LOCKED`, retry with bounded backoff, and use job/delivery IDs as provider idempotency keys.
