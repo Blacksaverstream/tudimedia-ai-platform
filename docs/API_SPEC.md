@@ -69,3 +69,12 @@ Responses must enforce tenant authorization, include a request ID, and return an
 ## Events
 
 Webhook event names use past tense, e.g. `asset.processed`, `asset.enrichment.completed`, and `review.approved`. Deliveries are signed, retried with backoff, and idempotent for consumers.
+
+## Commercial and operations APIs
+
+- `GET/PUT /billing/subscription` returns or updates the tenant plan and entitlements; updates require the owner billing permission.
+- `POST /billing/usage` records a positive metered quantity with a tenant-scoped idempotency key.
+- `GET/POST /notifications` lists the current user's notifications or creates an operational notification; `PATCH /notifications/{id}/read` marks one read.
+- `POST /assets/{id}/translations` queues a source-linked translation with distinct BCP 47 source and target languages.
+- `POST /renders` queues a bounded MP4/WebM render request. Both translation and render requests require an idempotency key.
+- `GET /admin/operations` returns tenant subscription and job state for owners/admins; `POST /operations/{id}/cancel` cancels queued or failed jobs.
